@@ -28,6 +28,10 @@ unique_ptr<LogicalOperator> DuckCatalog::BindAlterAddIndex(Binder &binder, Table
 	                                    std::move(alter_info));
 }
 
+BoundStatement Binder::BindAlterAddFK(BoundStatement &result, CatalogEntry &entry,
+                                         unique_ptr<AlterInfo> alter_info) {
+	return std::move(result);
+}
 BoundStatement Binder::BindAlterAddIndex(BoundStatement &result, CatalogEntry &entry,
                                          unique_ptr<AlterInfo> alter_info) {
 	auto &table_info = alter_info->Cast<AlterTableInfo>();
@@ -120,12 +124,16 @@ BoundStatement Binder::Bind(AlterStatement &stmt) {
 	stmt.info->catalog = catalog.GetName();
 	stmt.info->schema = entry->ParentSchema().name;
 
-	if (!stmt.info->IsAddPrimaryKey()) {
-		result.plan = make_uniq<LogicalSimple>(LogicalOperatorType::LOGICAL_ALTER, std::move(stmt.info));
-		return result;
+	if (stmt.info->IsAddPrimaryKey()) {
+		return BindAlterAddIndex(result, *entry, std::move(stmt.info));
 	}
 
-	return BindAlterAddIndex(result, *entry, std::move(stmt.info));
+	if (stmt.info->IsAddForeignKey()) {
+		return BindAlterAddFK(result, *entry, std::move(stmt.info));
+	}
+	result.plan = make_uniq<LogicalSimple>(LogicalOperatorType::LOGICAL_ALTER, std::move(stmt.info));
+	return result;
+
 }
 
 BoundStatement Binder::Bind(TransactionStatement &stmt) {

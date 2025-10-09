@@ -131,7 +131,8 @@ unique_ptr<AlterStatement> Transformer::TransformAlter(duckdb_libpgquery::PGAlte
 		}
 		case duckdb_libpgquery::PG_AT_AddConstraint: {
 			auto pg_constraint = PGCast<duckdb_libpgquery::PGConstraint>(*command->def);
-			if (pg_constraint.contype != duckdb_libpgquery::PGConstrType::PG_CONSTR_PRIMARY) {
+			if ((pg_constraint.contype != duckdb_libpgquery::PGConstrType::PG_CONSTR_PRIMARY) 
+				&&(pg_constraint.contype != duckdb_libpgquery::PGConstrType::PG_CONSTR_FOREIGN)) {
 				throw NotImplementedException("No support for that ALTER TABLE option yet!");
 			}
 

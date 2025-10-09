@@ -1208,19 +1208,25 @@ unique_ptr<CatalogEntry> DuckTableEntry::AddConstraint(ClientContext &context, A
 		create_info->constraints.push_back(constraint->Copy());
 	}
 
-	if (info.constraint->type == ConstraintType::UNIQUE) {
-		const auto &unique = info.constraint->Cast<UniqueConstraint>();
-		const auto existing_pk = GetPrimaryKey();
+	switch(info.constraint->type){
+		case ConstraintType::UNIQUE: {
+			const auto &unique = info.constraint->Cast<UniqueConstraint>();
+			const auto existing_pk = GetPrimaryKey();
 
-		if (unique.is_primary_key && existing_pk) {
-			auto existing_name = existing_pk->ToString();
-			throw CatalogException("table \"%s\" can have only one primary key: %s", name, existing_name);
+			if (unique.is_primary_key && existing_pk) {
+				auto existing_name = existing_pk->ToString();
+				throw CatalogException("table \"%s\" can have only one primary key: %s", name, existing_name);
+			}
+			break;
 		}
-		create_info->constraints.push_back(info.constraint->Copy());
-
-	} else {
-		throw InternalException("unsupported constraint type in ALTER TABLE statement");
+		case ConstraintType::FOREIGN_KEY: {
+			break;
+		}
+		default:{
+			throw InternalException("unsupported constraint type in ALTER TABLE statement");
+		}
 	}
+	create_info->constraints.push_back(info.constraint->Copy());
 
 	// We create a physical table with a new constraint and a new unique index.
 	const auto binder = Binder::CreateBinder(context);
