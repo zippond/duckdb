@@ -176,11 +176,12 @@ ExtraConstraintInfo GetExtraConstraintInfo(const TableCatalogEntry &table, const
 }
 
 string GetConstraintName(const TableCatalogEntry &table, Constraint &constraint, const ExtraConstraintInfo &info) {
+	if (constraint.type == ConstraintType::FOREIGN_KEY) {
+		auto &fk = constraint.Cast<ForeignKeyConstraint>();
+		return fk.GetName(table.name);
+	}
 	string result = table.name + "_";
 	for (auto &col : info.column_names) {
-		result += StringUtil::Lower(col) + "_";
-	}
-	for (auto &col : info.referenced_columns) {
 		result += StringUtil::Lower(col) + "_";
 	}
 	switch (constraint.type) {
@@ -195,9 +196,6 @@ string GetConstraintName(const TableCatalogEntry &table, Constraint &constraint,
 		result += unique.IsPrimaryKey() ? "pkey" : "key";
 		break;
 	}
-	case ConstraintType::FOREIGN_KEY:
-		result += "fkey";
-		break;
 	default:
 		throw InternalException("Unsupported type for constraint name");
 	}

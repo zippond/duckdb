@@ -25,8 +25,10 @@ add_library_unity(
   bind_set.cpp
   bind_simple.cpp
   bind_summarize.cpp
+  bind_statement_helper.cpp
   bind_update.cpp
   bind_update_extensions.cpp
+
   bind_vacuum.cpp)
 set(ALL_OBJECT_FILES
     ${ALL_OBJECT_FILES} $<TARGET_OBJECTS:duckdb_bind_statement>

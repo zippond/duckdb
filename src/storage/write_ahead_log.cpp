@@ -507,12 +507,13 @@ void WriteAheadLog::WriteAlter(CatalogEntry &entry, const AlterInfo &info) {
 	WriteAheadLogSerializer serializer(*this, WALType::ALTER_INFO);
 	serializer.WriteProperty(101, "info", &info);
 
-	if (!info.IsAddPrimaryKey()) {
+	if ((!info.IsAddPrimaryKey()) && (!info.IsAddForeignKey())) {
 		return serializer.End();
 	}
 
 	auto &table_info = info.Cast<AlterTableInfo>();
 	auto &constraint_info = table_info.Cast<AddConstraintInfo>();
+	// TODO: Foreign Key
 	auto &unique = constraint_info.constraint->Cast<UniqueConstraint>();
 
 	auto &table_entry = entry.Cast<DuckTableEntry>();

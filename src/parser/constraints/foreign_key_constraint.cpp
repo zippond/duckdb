@@ -1,6 +1,7 @@
 #include "duckdb/parser/constraints/foreign_key_constraint.hpp"
 
 #include "duckdb/common/limits.hpp"
+#include "duckdb/common/string_util.hpp"
 #include "duckdb/parser/keyword_helper.hpp"
 
 namespace duckdb {
@@ -13,6 +14,17 @@ ForeignKeyConstraint::ForeignKeyConstraint(vector<string> pk_columns, vector<str
       info(std::move(info)) {
 }
 
+string ForeignKeyConstraint::GetName(const string& table_name) const {
+	string name = table_name + "_";
+	for (const auto &column_name: fk_columns){
+		name += StringUtil::Lower(column_name) + "_";
+	}
+	for (const auto &column_name: pk_columns){
+		name += StringUtil::Lower(column_name) + "_";
+	}
+	name += "fkey";
+	return name;
+}
 string ForeignKeyConstraint::ToString() const {
 	if (info.type == ForeignKeyType::FK_TYPE_FOREIGN_KEY_TABLE) {
 		string base = "FOREIGN KEY (";

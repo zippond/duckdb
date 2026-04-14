@@ -122,5 +122,4 @@ vector<idx_t> ParseColumnsOrdered(const Value &value, vector<string> &names, con
 	}
 	return ParseColumnsOrdered(children, names, loption);
 }
-
 } // namespace duckdb
