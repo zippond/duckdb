@@ -10,6 +10,7 @@
 
 #include "duckdb/parser/parsed_data/create_index_info.hpp"
 #include "duckdb/planner/logical_operator.hpp"
+#include "duckdb/planner/constraints/bound_foreign_key_constraint.hpp"
 #include "duckdb/function/table_function.hpp"
 
 namespace duckdb {
@@ -20,7 +21,8 @@ public:
 
 public:
 	LogicalCreateIndex(unique_ptr<CreateIndexInfo> info_p, vector<unique_ptr<Expression>> expressions_p,
-	                   TableCatalogEntry &table_p, unique_ptr<AlterTableInfo> alter_table_info = nullptr);
+	                   TableCatalogEntry &table_p, unique_ptr<AlterTableInfo> alter_table_info = nullptr,
+	                   unique_ptr<BoundForeignKeyConstraint> fk_constraint = nullptr);
 
 	//! Index creation information.
 	unique_ptr<CreateIndexInfo> info;
@@ -28,6 +30,8 @@ public:
 	TableCatalogEntry &table;
 	// Alter table information.
 	unique_ptr<AlterTableInfo> alter_table_info;
+	// Foreign key constraint
+	unique_ptr<BoundForeignKeyConstraint> fk_constraint;
 	//! Unbound expressions of the indexed columns.
 	vector<unique_ptr<Expression>> unbound_expressions;
 

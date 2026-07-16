@@ -11,6 +11,7 @@
 #include "duckdb/execution/index/art/art.hpp"
 #include "duckdb/execution/physical_operator.hpp"
 #include "duckdb/parser/parsed_data/create_index_info.hpp"
+#include "duckdb/planner/constraints/bound_foreign_key_constraint.hpp"
 #include "duckdb/storage/data_table.hpp"
 
 #include <fstream>
@@ -28,7 +29,8 @@ public:
 	PhysicalCreateARTIndex(PhysicalPlan &physical_plan, LogicalOperator &op, TableCatalogEntry &table,
 	                       const vector<column_t> &column_ids, unique_ptr<CreateIndexInfo> info,
 	                       vector<unique_ptr<Expression>> unbound_expressions, idx_t estimated_cardinality,
-	                       const bool sorted, unique_ptr<AlterTableInfo> alter_table_info = nullptr);
+	                       const bool sorted, unique_ptr<AlterTableInfo> alter_table_info = nullptr,
+	                       unique_ptr<BoundForeignKeyConstraint> fk_constraint = nullptr);
 
 	//! The table to create the index for.
 	DuckTableEntry &table;
@@ -42,6 +44,8 @@ public:
 	const bool sorted;
 	//! Alter table information for adding indexes.
 	unique_ptr<AlterTableInfo> alter_table_info;
+	//! ForeignKeyCsontraint for ALTER TABLE ADD FOREIGN KEY CONSTRAINT verification
+	unique_ptr<BoundForeignKeyConstraint> fk_constraint;
 
 public:
 	//! Source interface, NOP for this operator

@@ -30,6 +30,7 @@ struct AttachOptions;
 struct CreateSchemaInfo;
 struct DropInfo;
 struct BoundCreateTableInfo;
+class BoundForeignKeyConstraint;
 struct AlterTableInfo;
 struct CreateTableFunctionInfo;
 struct CreateCopyFunctionInfo;
@@ -316,7 +317,8 @@ public:
 	virtual unique_ptr<LogicalOperator> BindAlterAddForeignKey(Binder &binder, TableCatalogEntry &table_entry,
 	                                                      unique_ptr<LogicalOperator> plan,
 	                                                      unique_ptr<CreateIndexInfo> create_info,
-	                                                      unique_ptr<AlterTableInfo> alter_info);
+	                                                      unique_ptr<AlterTableInfo> alter_info,
+	                                                      unique_ptr<BoundForeignKeyConstraint> fk_constraint);
 
 	virtual DatabaseSize GetDatabaseSize(ClientContext &context) = 0;
 	virtual vector<MetadataBlockInfo> GetMetadataInfo(ClientContext &context);

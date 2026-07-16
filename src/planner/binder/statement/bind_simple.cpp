@@ -11,6 +11,7 @@
 #include "duckdb/parser/tableref/basetableref.hpp"
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/bind_statement_helper.hpp"
+#include "duckdb/planner/constraints/bound_foreign_key_constraint.hpp"
 #include "duckdb/planner/constraints/bound_unique_constraint.hpp"
 #include "duckdb/planner/expression_binder/index_binder.hpp"
 #include "duckdb/planner/operator/logical_create_index.hpp"
@@ -22,12 +23,13 @@ namespace duckdb {
 unique_ptr<LogicalOperator> DuckCatalog::BindAlterAddForeignKey(Binder &binder, TableCatalogEntry &table_entry,
                                                            unique_ptr<LogicalOperator> plan,
                                                            unique_ptr<CreateIndexInfo> create_info,
-                                                           unique_ptr<AlterTableInfo> alter_info) {
+                                                           unique_ptr<AlterTableInfo> alter_info,
+                                                           unique_ptr<BoundForeignKeyConstraint> fk_constraint) {
 	// TODO: ZZZ Seems no need this func?
 	D_ASSERT(plan->type == LogicalOperatorType::LOGICAL_GET);
 	IndexBinder index_binder(binder, binder.context);
 	return index_binder.BindCreateIndex(binder.context, std::move(create_info), table_entry, std::move(plan),
-	                                    std::move(alter_info));
+	                                    std::move(alter_info), std::move(fk_constraint));
 }
 
 unique_ptr<LogicalOperator> DuckCatalog::BindAlterAddIndex(Binder &binder, TableCatalogEntry &table_entry,
@@ -151,8 +153,9 @@ BoundStatement Binder::BindAlterAddForeignKey(BoundStatement &result, CatalogEnt
 	get.names = column_list.GetColumnNames();
 
 	auto alter_table_info = unique_ptr_cast<AlterInfo, AlterTableInfo>(std::move(alter_info));
+	auto fk_copy = unique_ptr_cast<BoundConstraint, BoundForeignKeyConstraint>(bound_fk.Copy());
 	result.plan = table.catalog.BindAlterAddForeignKey(*this, table, std::move(plan), std::move(create_index_info),
-	                                              std::move(alter_table_info));
+	                                              std::move(alter_table_info), std::move(fk_copy));
 	return std::move(result);
 }
 BoundStatement Binder::BindAlterAddIndex(BoundStatement &result, CatalogEntry &entry,

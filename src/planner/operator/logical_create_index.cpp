@@ -7,9 +7,10 @@
 namespace duckdb {
 
 LogicalCreateIndex::LogicalCreateIndex(unique_ptr<CreateIndexInfo> info_p, vector<unique_ptr<Expression>> expressions_p,
-                                       TableCatalogEntry &table_p, unique_ptr<AlterTableInfo> alter_table_info)
+                                       TableCatalogEntry &table_p, unique_ptr<AlterTableInfo> alter_table_info,
+                                       unique_ptr<BoundForeignKeyConstraint> fk_constraint)
     : LogicalOperator(LogicalOperatorType::LOGICAL_CREATE_INDEX), info(std::move(info_p)), table(table_p),
-      alter_table_info(std::move(alter_table_info)) {
+      alter_table_info(std::move(alter_table_info)), fk_constraint(std::move(fk_constraint)) {
 
 	for (auto &expr : expressions_p) {
 		unbound_expressions.push_back(expr->Copy());
@@ -21,6 +22,7 @@ LogicalCreateIndex::LogicalCreateIndex(unique_ptr<CreateIndexInfo> info_p, vecto
 	}
 }
 
+// Should this be updated too?
 LogicalCreateIndex::LogicalCreateIndex(ClientContext &context, unique_ptr<CreateInfo> info_p,
                                        vector<unique_ptr<Expression>> expressions_p,
                                        unique_ptr<ParseInfo> alter_table_info)

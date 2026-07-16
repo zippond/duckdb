@@ -70,7 +70,8 @@ unique_ptr<LogicalOperator> IndexBinder::BindCreateIndex(ClientContext &context,
                                                          unique_ptr<CreateIndexInfo> create_index_info,
                                                          TableCatalogEntry &table_entry,
                                                          unique_ptr<LogicalOperator> plan,
-                                                         unique_ptr<AlterTableInfo> alter_table_info) {
+                                                         unique_ptr<AlterTableInfo> alter_table_info,
+                                                         unique_ptr<BoundForeignKeyConstraint> fk_constraint) {
 	// Add the dependencies.
 	auto &dependencies = create_index_info->dependencies;
 	auto &catalog = Catalog::GetCatalog(context, create_index_info->catalog);
@@ -93,7 +94,7 @@ unique_ptr<LogicalOperator> IndexBinder::BindCreateIndex(ClientContext &context,
 	bind_data.is_create_index = true;
 
 	auto result = make_uniq<LogicalCreateIndex>(std::move(create_index_info), std::move(expressions), table_entry,
-	                                            std::move(alter_table_info));
+	                                            std::move(alter_table_info), std::move(fk_constraint));
 	result->children.push_back(std::move(plan));
 	return std::move(result);
 }

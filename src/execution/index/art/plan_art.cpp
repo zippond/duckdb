@@ -60,7 +60,8 @@ PhysicalOperator &ART::CreatePlan(PlanIndexInput &input) {
 	// CREATE INDEX operator.
 	auto &create_idx = planner.Make<PhysicalCreateARTIndex>(op, op.table, op.info->column_ids, std::move(op.info),
 	                                                        std::move(op.unbound_expressions), op.estimated_cardinality,
-	                                                        sort, std::move(op.alter_table_info));
+	                                                        sort, std::move(op.alter_table_info),
+	                                                        std::move(op.fk_constraint));
 
 	if (!sort) {
 		create_idx.children.push_back(prev_op);

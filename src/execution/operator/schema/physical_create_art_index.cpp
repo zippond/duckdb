@@ -19,10 +19,11 @@ PhysicalCreateARTIndex::PhysicalCreateARTIndex(PhysicalPlan &physical_plan, Logi
                                                unique_ptr<CreateIndexInfo> info,
                                                vector<unique_ptr<Expression>> unbound_expressions,
                                                idx_t estimated_cardinality, const bool sorted,
-                                               unique_ptr<AlterTableInfo> alter_table_info)
+                                               unique_ptr<AlterTableInfo> alter_table_info,
+                                               unique_ptr<BoundForeignKeyConstraint> fk_constraint)
     : PhysicalOperator(physical_plan, PhysicalOperatorType::CREATE_INDEX, op.types, estimated_cardinality),
       table(table_p.Cast<DuckTableEntry>()), info(std::move(info)), unbound_expressions(std::move(unbound_expressions)),
-      sorted(sorted), alter_table_info(std::move(alter_table_info)) {
+      sorted(sorted), alter_table_info(std::move(alter_table_info)), fk_constraint(std::move(fk_constraint)) {
 
 	// Convert the logical column ids to physical column ids.
 	for (auto &column_id : column_ids) {
@@ -136,12 +137,20 @@ SinkResultType PhysicalCreateARTIndex::Sink(ExecutionContext &context, DataChunk
 	// Check for NULLs, if we are creating a PRIMARY KEY.
 	// FIXME: Later, we want to ensure that we skip the NULL check for any non-PK alter.
 	if (alter_table_info) {
-		auto row_count = l_state.key_chunk.size();
-		for (idx_t i = 0; i < l_state.key_chunk.ColumnCount(); i++) {
-			if (VectorOperations::HasNull(l_state.key_chunk.data[i], row_count)) {
-				throw ConstraintException("NOT NULL constraint failed: %s", info->index_name);
+		if (!fk_constraint) { // PK
+			auto row_count = l_state.key_chunk.size();
+			for (idx_t i = 0; i < l_state.key_chunk.ColumnCount(); i++) {
+				if (VectorOperations::HasNull(l_state.key_chunk.data[i], row_count)) {
+					throw ConstraintException("NOT NULL constraint failed: %s", info->index_name);
+				}
 			}
 		}
+	}
+
+	// Verify existing data. 
+	// TODO: Does it verify local data? Add test to check this!
+	if (fk_constraint) {
+		table.GetStorage().VerifyFKReferentialIntegrity(*fk_constraint, context.client, l_state.key_chunk);
 	}
 
 	l_state.local_index->Cast<ART>().GenerateKeyVectors(
