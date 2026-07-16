@@ -24,6 +24,7 @@
 #include "duckdb/parser/parsed_data/create_view_info.hpp"
 #include "duckdb/parser/parsed_data/drop_info.hpp"
 #include "duckdb/planner/binder.hpp"
+#include "duckdb/parser/constraints/foreign_key_constraint.hpp"
 #include "duckdb/planner/expression_binder/index_binder.hpp"
 #include "duckdb/planner/parsed_data/bound_create_table_info.hpp"
 #include "duckdb/storage/single_file_block_manager.hpp"
@@ -584,8 +585,38 @@ void WriteAheadLogDeserializer::ReplayIndexData(IndexStorageInfo &info) {
 void WriteAheadLogDeserializer::ReplayAlter() {
 	auto info = deserializer.ReadProperty<unique_ptr<ParseInfo>>(101, "info");
 	auto &alter_info = info->Cast<AlterInfo>();
-	if (!alter_info.IsAddPrimaryKey()) {
+	if ((!alter_info.IsAddPrimaryKey()) && (!alter_info.IsAddForeignKey())) {
 		return ReplayWithoutIndex(context, catalog, alter_info, DeserializeOnly());
+	}
+
+
+	// FK has no serialized index data — the index is rebuilt from a table scan.
+	if (alter_info.IsAddForeignKey()) {
+		if (DeserializeOnly()) {
+			return;
+		}
+		catalog.Alter(context, alter_info);
+
+		// After the constraint is registered, add an empty unbound FK index to storage.
+		// It will be populated from a table scan on first bind, mirroring checkpoint loading.
+		auto &table_info = alter_info.Cast<AlterTableInfo>();
+		auto &constraint_info = table_info.Cast<AddConstraintInfo>();
+		auto &fk = constraint_info.constraint->Cast<ForeignKeyConstraint>();
+		auto index_name = fk.GetName(table_info.name);
+
+		auto &table =
+		    catalog.GetEntry<TableCatalogEntry>(context, table_info.schema, table_info.name).Cast<DuckTableEntry>();
+		auto &storage = table.GetStorage();
+
+		vector<LogicalIndex> column_indexes;
+		for (const auto &physical_index : fk.info.fk_keys) {
+			auto &col = table.GetColumns().GetColumn(physical_index);
+			column_indexes.push_back(col.Logical());
+		}
+
+		IndexStorageInfo index_storage_info(index_name);
+		storage.AddIndex(table.GetColumns(), column_indexes, IndexConstraintType::FOREIGN, index_storage_info);
+		return;
 	}
 
 	auto index_storage_info = deserializer.ReadProperty<IndexStorageInfo>(102, "index_storage_info");
