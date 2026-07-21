@@ -150,9 +150,22 @@ SinkResultType PhysicalCreateARTIndex::Sink(ExecutionContext &context, DataChunk
 	// Verify existing data. 
 	// TODO: Does it verify local data? Add test to check this!
 	if (fk_constraint) {
-		table.GetStorage().VerifyFKReferentialIntegrity(*fk_constraint, context.client, l_state.key_chunk);
+		// key_chunk has FK columns at indices 0..N-1 (projected), but VerifyForeignKeyConstraint
+		// uses fk_keys physical indices to address the chunk. Build a correctly-indexed chunk.
+		auto &fk_keys = fk_constraint->info.fk_keys;
+		auto &table_entry = table;
+		vector<LogicalType> full_types;
+		for (auto &col : table_entry.GetColumns().Physical()) {
+			full_types.emplace_back(col.Type());
+		}
+		DataChunk full_chunk;
+		full_chunk.InitializeEmpty(full_types);
+		for (idx_t i = 0; i < fk_keys.size(); i++) {
+			full_chunk.data[fk_keys[i].index].Reference(l_state.key_chunk.data[i]);
+		}
+		full_chunk.SetCardinality(l_state.key_chunk.size());
+		table.GetStorage().VerifyFKReferentialIntegrity(*fk_constraint, context.client, full_chunk);
 	}
-
 	l_state.local_index->Cast<ART>().GenerateKeyVectors(
 	    l_state.arena_allocator, l_state.key_chunk, chunk.data[chunk.ColumnCount() - 1], l_state.keys, l_state.row_ids);
 

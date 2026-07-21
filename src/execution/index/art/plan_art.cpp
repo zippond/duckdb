@@ -29,7 +29,8 @@ PhysicalOperator &ART::CreatePlan(PlanIndexInput &input) {
 	// Optional NOT NULL filter.
 	reference<PhysicalOperator> prev_op(proj);
 	auto is_alter = op.alter_table_info != nullptr;
-	if (!is_alter) {
+	auto is_fk = op.fk_constraint != nullptr; // FK should skip NULL value too
+	if (!is_alter || is_fk) {
 		vector<LogicalType> filter_types;
 		vector<unique_ptr<Expression>> filter_select_list;
 		auto not_null_type = ExpressionType::OPERATOR_IS_NOT_NULL;
