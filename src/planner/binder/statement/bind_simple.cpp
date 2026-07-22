@@ -11,7 +11,6 @@
 #include "duckdb/parser/tableref/basetableref.hpp"
 #include "duckdb/planner/binder.hpp"
 #include "duckdb/planner/bind_statement_helper.hpp"
-#include "duckdb/planner/constraints/bound_foreign_key_constraint.hpp"
 #include "duckdb/planner/constraints/bound_unique_constraint.hpp"
 #include "duckdb/planner/expression_binder/index_binder.hpp"
 #include "duckdb/planner/operator/logical_create_index.hpp"
@@ -23,13 +22,12 @@ namespace duckdb {
 unique_ptr<LogicalOperator> DuckCatalog::BindAlterAddForeignKey(Binder &binder, TableCatalogEntry &table_entry,
                                                            unique_ptr<LogicalOperator> plan,
                                                            unique_ptr<CreateIndexInfo> create_info,
-                                                           unique_ptr<AlterTableInfo> alter_info,
-                                                           unique_ptr<BoundForeignKeyConstraint> fk_constraint) {
+                                                           unique_ptr<AlterTableInfo> alter_info) {
 	// TODO: ZZZ Seems no need this func?
 	D_ASSERT(plan->type == LogicalOperatorType::LOGICAL_GET);
 	IndexBinder index_binder(binder, binder.context);
 	return index_binder.BindCreateIndex(binder.context, std::move(create_info), table_entry, std::move(plan),
-	                                    std::move(alter_info), std::move(fk_constraint));
+	                                    std::move(alter_info));
 }
 
 unique_ptr<LogicalOperator> DuckCatalog::BindAlterAddIndex(Binder &binder, TableCatalogEntry &table_entry,
@@ -114,8 +112,8 @@ BoundStatement Binder::BindAlterAddForeignKey(BoundStatement &result, CatalogEnt
 	// void Binder::BindParsedForeignKeyConstraint(ForeignKeyConstraint& fk, SchemaCatalogEntry &schema) Or
 	// void Binder::BindParsedForeignKeyConstraint(ForeignKeyConstraint& fk, TableCatalogEntry &table)
 	BindParsedForeignKeyConstraint(constraint_info.constraint->Cast<ForeignKeyConstraint>(), table.schema, table);
-	auto bound_constraint = BindForeignKey(*constraint_info.constraint);
-	auto &bound_fk = bound_constraint->Cast<BoundForeignKeyConstraint>();
+	auto &fk = constraint_info.constraint->Cast<ForeignKeyConstraint>();
+
 
 	// Create the CreateIndexInfo.
 	auto create_index_info = make_uniq<CreateIndexInfo>();
@@ -127,7 +125,7 @@ BoundStatement Binder::BindAlterAddForeignKey(BoundStatement &result, CatalogEnt
 	// Need to get such info for FKs from BoundForeignKeyConstraint
 	// Check the def of BoundForeignKeyConstraint
 	// It's ForeignKeyInfo --> vector<PhysicalIndex> fk_keys;
-	for (const auto &physical_index : bound_fk.info.fk_keys) {
+	for (const auto &physical_index : fk.info.fk_keys) {
 		auto &col = column_list.GetColumn(physical_index);
 		unique_ptr<ParsedExpression> parsed = make_uniq<ColumnRefExpression>(col.GetName(), table_info.name);
 		create_index_info->expressions.push_back(parsed->Copy());
@@ -136,8 +134,7 @@ BoundStatement Binder::BindAlterAddForeignKey(BoundStatement &result, CatalogEnt
 
 	// TODO: ZZZ index name
 	// Need FK index name
-	auto fk_constraint = constraint_info.constraint->Cast<ForeignKeyConstraint>();
-	auto index_name = fk_constraint.GetName(table_info.name);
+	auto index_name = fk.GetName(table_info.name);
 	create_index_info->index_name = index_name;
 	D_ASSERT(!create_index_info->index_name.empty());
 
@@ -153,9 +150,8 @@ BoundStatement Binder::BindAlterAddForeignKey(BoundStatement &result, CatalogEnt
 	get.names = column_list.GetColumnNames();
 
 	auto alter_table_info = unique_ptr_cast<AlterInfo, AlterTableInfo>(std::move(alter_info));
-	auto fk_copy = unique_ptr_cast<BoundConstraint, BoundForeignKeyConstraint>(bound_fk.Copy());
 	result.plan = table.catalog.BindAlterAddForeignKey(*this, table, std::move(plan), std::move(create_index_info),
-	                                              std::move(alter_table_info), std::move(fk_copy));
+	                                              std::move(alter_table_info));
 	return std::move(result);
 }
 BoundStatement Binder::BindAlterAddIndex(BoundStatement &result, CatalogEntry &entry,

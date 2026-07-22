@@ -29,8 +29,7 @@ public:
 	PhysicalCreateARTIndex(PhysicalPlan &physical_plan, LogicalOperator &op, TableCatalogEntry &table,
 	                       const vector<column_t> &column_ids, unique_ptr<CreateIndexInfo> info,
 	                       vector<unique_ptr<Expression>> unbound_expressions, idx_t estimated_cardinality,
-	                       const bool sorted, unique_ptr<AlterTableInfo> alter_table_info = nullptr,
-	                       unique_ptr<BoundForeignKeyConstraint> fk_constraint = nullptr);
+	                       const bool sorted, unique_ptr<AlterTableInfo> alter_table_info = nullptr);
 
 	//! The table to create the index for.
 	DuckTableEntry &table;
@@ -44,8 +43,10 @@ public:
 	const bool sorted;
 	//! Alter table information for adding indexes.
 	unique_ptr<AlterTableInfo> alter_table_info;
-	//! ForeignKeyCsontraint for ALTER TABLE ADD FOREIGN KEY CONSTRAINT verification
-	unique_ptr<BoundForeignKeyConstraint> fk_constraint;
+
+	//! Bound FK constraint for ALTER TABLE ADD FOREIGN KEY verification, derived from alter_table_info.
+	unique_ptr<BoundForeignKeyConstraint> bound_fk;
+
 
 public:
 	//! Source interface, NOP for this operator

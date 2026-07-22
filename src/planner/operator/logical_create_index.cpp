@@ -7,10 +7,9 @@
 namespace duckdb {
 
 LogicalCreateIndex::LogicalCreateIndex(unique_ptr<CreateIndexInfo> info_p, vector<unique_ptr<Expression>> expressions_p,
-                                       TableCatalogEntry &table_p, unique_ptr<AlterTableInfo> alter_table_info,
-                                       unique_ptr<BoundForeignKeyConstraint> fk_constraint)
+                                       TableCatalogEntry &table_p, unique_ptr<AlterTableInfo> alter_table_info)
     : LogicalOperator(LogicalOperatorType::LOGICAL_CREATE_INDEX), info(std::move(info_p)), table(table_p),
-      alter_table_info(std::move(alter_table_info)), fk_constraint(std::move(fk_constraint)) {
+      alter_table_info(std::move(alter_table_info)) {
 
 	for (auto &expr : expressions_p) {
 		unbound_expressions.push_back(expr->Copy());

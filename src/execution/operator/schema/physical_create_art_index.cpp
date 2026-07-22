@@ -11,6 +11,8 @@
 #include "duckdb/storage/table/append_state.hpp"
 #include "duckdb/common/exception/transaction_exception.hpp"
 #include "duckdb/execution/index/art/art_operator.hpp"
+#include "duckdb/parser/parsed_data/alter_table_info.hpp"
+#include "duckdb/parser/constraints/foreign_key_constraint.hpp"
 
 namespace duckdb {
 
@@ -19,15 +21,22 @@ PhysicalCreateARTIndex::PhysicalCreateARTIndex(PhysicalPlan &physical_plan, Logi
                                                unique_ptr<CreateIndexInfo> info,
                                                vector<unique_ptr<Expression>> unbound_expressions,
                                                idx_t estimated_cardinality, const bool sorted,
-                                               unique_ptr<AlterTableInfo> alter_table_info,
-                                               unique_ptr<BoundForeignKeyConstraint> fk_constraint)
+                                               unique_ptr<AlterTableInfo> alter_table_info)
     : PhysicalOperator(physical_plan, PhysicalOperatorType::CREATE_INDEX, op.types, estimated_cardinality),
       table(table_p.Cast<DuckTableEntry>()), info(std::move(info)), unbound_expressions(std::move(unbound_expressions)),
-      sorted(sorted), alter_table_info(std::move(alter_table_info)), fk_constraint(std::move(fk_constraint)) {
+      sorted(sorted), alter_table_info(std::move(alter_table_info)) {
 
 	// Convert the logical column ids to physical column ids.
 	for (auto &column_id : column_ids) {
 		storage_ids.push_back(table.GetColumns().LogicalToPhysical(LogicalIndex(column_id)).index);
+	}
+	// Pre-build the BoundForeignKeyConstraint and full column type list for FK verification.
+	if (this->alter_table_info && this->alter_table_info->IsAddForeignKey()) {
+		auto &constraint_info = this->alter_table_info->Cast<AddConstraintInfo>();
+		auto &fk = constraint_info.constraint->Cast<ForeignKeyConstraint>();
+		physical_index_set_t pk_key_set(fk.info.pk_keys.begin(), fk.info.pk_keys.end());
+		physical_index_set_t fk_key_set(fk.info.fk_keys.begin(), fk.info.fk_keys.end());
+		bound_fk = make_uniq<BoundForeignKeyConstraint>(fk.info, std::move(pk_key_set), std::move(fk_key_set));
 	}
 }
 
@@ -136,36 +145,33 @@ SinkResultType PhysicalCreateARTIndex::Sink(ExecutionContext &context, DataChunk
 
 	// Check for NULLs, if we are creating a PRIMARY KEY.
 	// FIXME: Later, we want to ensure that we skip the NULL check for any non-PK alter.
-	if (alter_table_info) {
-		if (!fk_constraint) { // PK
-			auto row_count = l_state.key_chunk.size();
-			for (idx_t i = 0; i < l_state.key_chunk.ColumnCount(); i++) {
-				if (VectorOperations::HasNull(l_state.key_chunk.data[i], row_count)) {
-					throw ConstraintException("NOT NULL constraint failed: %s", info->index_name);
-				}
+	if (alter_table_info && !bound_fk) {
+		auto row_count = l_state.key_chunk.size();
+		for (idx_t i = 0; i < l_state.key_chunk.ColumnCount(); i++) {
+			if (VectorOperations::HasNull(l_state.key_chunk.data[i], row_count)) {
+				throw ConstraintException("NOT NULL constraint failed: %s", info->index_name);
 			}
 		}
 	}
 
-	// Verify existing data. 
+	// Verify FK referential integrity for ALTER TABLE ADD FOREIGN KEY.
 	// TODO: Does it verify local data? Add test to check this!
-	if (fk_constraint) {
+	if (bound_fk) {
 		// key_chunk has FK columns at indices 0..N-1 (projected), but VerifyForeignKeyConstraint
 		// uses fk_keys physical indices to address the chunk. Build a correctly-indexed chunk.
-		auto &fk_keys = fk_constraint->info.fk_keys;
-		auto &table_entry = table;
-		vector<LogicalType> full_types;
-		for (auto &col : table_entry.GetColumns().Physical()) {
-			full_types.emplace_back(col.Type());
+		vector<LogicalType> fk_table_types;
+		for (auto &col : table.GetColumns().Physical()) {
+			fk_table_types.emplace_back(col.Type());
 		}
 		DataChunk full_chunk;
-		full_chunk.InitializeEmpty(full_types);
-		for (idx_t i = 0; i < fk_keys.size(); i++) {
-			full_chunk.data[fk_keys[i].index].Reference(l_state.key_chunk.data[i]);
+		full_chunk.InitializeEmpty(fk_table_types);
+		for (idx_t i = 0; i < bound_fk->info.fk_keys.size(); i++) {
+			full_chunk.data[bound_fk->info.fk_keys[i].index].Reference(l_state.key_chunk.data[i]);
 		}
 		full_chunk.SetCardinality(l_state.key_chunk.size());
-		table.GetStorage().VerifyFKReferentialIntegrity(*fk_constraint, context.client, full_chunk);
+		table.GetStorage().VerifyFKReferentialIntegrity(*bound_fk, context.client, full_chunk);
 	}
+
 	l_state.local_index->Cast<ART>().GenerateKeyVectors(
 	    l_state.arena_allocator, l_state.key_chunk, chunk.data[chunk.ColumnCount() - 1], l_state.keys, l_state.row_ids);
 

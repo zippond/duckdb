@@ -66,8 +66,7 @@ public:
 	DUCKDB_API unique_ptr<LogicalOperator> BindAlterAddForeignKey(Binder &binder, TableCatalogEntry &table_entry,
 	                                                         unique_ptr<LogicalOperator> plan,
 	                                                         unique_ptr<CreateIndexInfo> create_info,
-	                                                         unique_ptr<AlterTableInfo>,
-	                                                         unique_ptr<BoundForeignKeyConstraint> fk_constraint = nullptr) override;
+	                                                         unique_ptr<AlterTableInfo> alter_info) override;
 
 
 	CatalogSet &GetSchemaCatalogSet();

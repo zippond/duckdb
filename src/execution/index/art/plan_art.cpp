@@ -29,7 +29,7 @@ PhysicalOperator &ART::CreatePlan(PlanIndexInput &input) {
 	// Optional NOT NULL filter.
 	reference<PhysicalOperator> prev_op(proj);
 	auto is_alter = op.alter_table_info != nullptr;
-	auto is_fk = op.fk_constraint != nullptr; // FK should skip NULL value too
+	auto is_fk = is_alter && op.alter_table_info->IsAddForeignKey(); // FK should skip NULL value too
 	if (!is_alter || is_fk) {
 		vector<LogicalType> filter_types;
 		vector<unique_ptr<Expression>> filter_select_list;
@@ -61,8 +61,7 @@ PhysicalOperator &ART::CreatePlan(PlanIndexInput &input) {
 	// CREATE INDEX operator.
 	auto &create_idx = planner.Make<PhysicalCreateARTIndex>(op, op.table, op.info->column_ids, std::move(op.info),
 	                                                        std::move(op.unbound_expressions), op.estimated_cardinality,
-	                                                        sort, std::move(op.alter_table_info),
-	                                                        std::move(op.fk_constraint));
+	                                                        sort, std::move(op.alter_table_info));
 
 	if (!sort) {
 		create_idx.children.push_back(prev_op);
