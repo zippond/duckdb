@@ -1155,41 +1155,48 @@ void DuckTableEntry::Rollback(CatalogEntry &prev_entry) {
 		return;
 	}
 
-	// Rolls back any physical index creation.
-	// FIXME: Currently only works for PKs.
-	// FIXME: Should be changed to work for any index-based constraint.
-
 	auto &table = Cast<DuckTableEntry>();
 	auto &prev_table = prev_entry.Cast<DuckTableEntry>();
 	auto &prev_info = prev_table.GetStorage().GetDataTableInfo();
 	auto &prev_indexes = prev_info->GetIndexes();
 
-	// Find all index-based constraints that exist in rollback_table, but not in table.
-	// Then, remove them.
-
-	unordered_set<string> names;
+	// Collect index names present in the previous (restored) entry.
+	unordered_set<string> prev_names;
 	for (const auto &constraint : prev_table.GetConstraints()) {
-		if (constraint->type != ConstraintType::UNIQUE) {
-			continue;
-		}
-		const auto &unique = constraint->Cast<UniqueConstraint>();
-		if (unique.is_primary_key) {
-			auto index_name = unique.GetName(prev_table.name);
-			names.insert(index_name);
+		if (constraint->type == ConstraintType::UNIQUE) {
+			const auto &unique = constraint->Cast<UniqueConstraint>();
+			if (unique.IsPrimaryKey()) {
+				prev_names.insert(unique.GetName(prev_table.name));
+			}
+		} else if (constraint->type == ConstraintType::FOREIGN_KEY) {
+			const auto &fk = constraint->Cast<ForeignKeyConstraint>();
+			if (fk.info.type == ForeignKeyType::FK_TYPE_FOREIGN_KEY_TABLE) {
+				prev_names.insert(fk.GetName(prev_table.name));
+			}
 		}
 	}
 
+	// Remove any storage indexes that exist in this (rolled-back) entry but
+	// not in the previous entry — they were added as part of the aborted ALTER.
 	for (const auto &constraint : GetConstraints()) {
-		if (constraint->type != ConstraintType::UNIQUE) {
-			continue;
-		}
-		const auto &unique = constraint->Cast<UniqueConstraint>();
-		if (!unique.IsPrimaryKey()) {
-			continue;
-		}
-		auto index_name = unique.GetName(table.name);
-		if (names.find(index_name) == names.end()) {
-			prev_indexes.RemoveIndex(index_name);
+		if (constraint->type == ConstraintType::UNIQUE) {
+			const auto &unique = constraint->Cast<UniqueConstraint>();
+			if (!unique.IsPrimaryKey()) {
+				continue;
+			}
+			auto index_name = unique.GetName(table.name);
+			if (prev_names.find(index_name) == prev_names.end()) {
+				prev_indexes.RemoveIndex(index_name);
+			}
+		} else if (constraint->type == ConstraintType::FOREIGN_KEY) {
+			const auto &fk = constraint->Cast<ForeignKeyConstraint>();
+			if (fk.info.type != ForeignKeyType::FK_TYPE_FOREIGN_KEY_TABLE) {
+				continue;
+			}
+			auto index_name = fk.GetName(table.name);
+			if (prev_names.find(index_name) == prev_names.end()) {
+				prev_indexes.RemoveIndex(index_name);
+			}
 		}
 	}
 }
