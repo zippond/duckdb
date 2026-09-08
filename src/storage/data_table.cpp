@@ -1664,7 +1664,7 @@ vector<ColumnSegmentInfo> DataTable::GetColumnSegmentInfo() {
 void DataTable::AddIndex(const ColumnList &columns, const vector<LogicalIndex> &column_indexes,
                          const IndexConstraintType type, const IndexStorageInfo &index_info) {
 	if (!IsMainTable()) {
-		throw TransactionException("Transaction conflict: attempting to add an index to table \"%s\" but it has been "
+		throw TransactionException("Transaction conflict: attempting to add an index to table %s but it has been "
 		                           "%s by a different transaction",
 		                           GetTableName(), TableModification());
 	}
